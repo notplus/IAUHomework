@@ -55,6 +55,8 @@ int siftMatch(std::string path_left, std::string path_right)
         return -1;
     }
 
+    cv::resize(image_left_rgb, image_left_rgb, cv::Size(512, 512));
+
     cv::imshow("Left Image", image_left_rgb);
     cv::imshow("Right Image", image_right_rgb);
     cv::waitKey(0);
@@ -230,17 +232,190 @@ int harrisDetector(std::string filename)
     return 0;
 }
 
+namespace IAU
+{
+    enum GRADIENT_TYPE
+    {
+        SOBEL=0, PREWITT, ROBERTS, LAPLACIAN
+    };
+}
+
+int Gradient(std::string file_path, int gradient_type)
+{
+    cv::Mat image_rgb, image;
+    image_rgb = cv::imread(file_path);
+
+    if (image_rgb.empty())
+    {
+        std::cout << "Fail to read the image: " << file_path << std::endl;
+        return -1;
+    }
+
+
+    cv::imshow("Image", image_rgb);
+
+    int x_window_start = 50; int y_window_start = 50;
+    cv::moveWindow("Image", x_window_start, y_window_start);
+
+
+    cv::cvtColor(image_rgb, image, cv::COLOR_RGB2GRAY);
+
+    cv::Mat x_result, y_result;
+    std::string x_window_name, y_window_name;
+
+    switch (gradient_type)
+    {
+    case IAU::SOBEL:
+    {
+        x_window_name = "x_sobel", y_window_name = "y_sobel";
+        cv::Sobel(image, x_result, CV_8U, 1, 0);
+        cv::Sobel(image, x_result, CV_8U, 0, 1);
+        break;
+    }
+    case IAU::PREWITT:
+    {
+        x_window_name = "x_prewitt", y_window_name = "y_prewitt";
+        cv::Mat kernel_x = (cv::Mat_<char>(3, 3) <<
+            -1, 0, 1,
+            -1, 0, 1,
+            -1, 0, 1);
+        cv::Mat kernel_y = (cv::Mat_<char>(3, 3) <<
+            -1, -1, -1,
+            0, 0, 0,
+            1, 1, 1);
+        cv::filter2D(image, x_result, image.type(), kernel_x);
+        cv::filter2D(image, y_result, image.type(), kernel_y);
+        break;
+    }
+    case IAU::ROBERTS:
+    {
+        x_window_name = "x_roberts", y_window_name = "y_roberts";
+        cv::Mat kernel_x_roberts = (cv::Mat_<char>(3, 3) <<
+            1, -1,
+            0, 0);
+        cv::Mat kernel_y_roberts = (cv::Mat_<char>(3, 3) <<
+            1, 0,
+            -1, 0);
+        cv::filter2D(image, x_result, image.type(), kernel_x_roberts);
+        cv::filter2D(image, y_result, image.type(), kernel_y_roberts);
+        break;
+    }
+    case IAU::LAPLACIAN:
+    {
+        x_window_name = "x_laplacian", y_window_name = "y_laplacian";
+        cv::Mat kernel_laplacian = (cv::Mat_<char>(3, 3) <<
+            0, -1, 0,
+            -1, 4, -1,
+            0, -1, 0);
+        cv::Mat kernel_laplacian_2 = (cv::Mat_<char>(3, 3) <<
+            -1, -1, -1,
+            -1, 8, -1,
+            -1, -1, -1);
+        cv::filter2D(image, x_result, image.type(), kernel_laplacian);
+        cv::filter2D(image, y_result, image.type(), kernel_laplacian_2);
+        break;
+    }
+    default:
+    {
+        x_window_name = "not support yet", y_window_name = "not support yet";
+        cv::putText(image_rgb, "Not supported yet!", cv::Point(10, 20), 1, 1, cv::Scalar(0, 0, 255));
+        x_result = y_result = image.clone();
+        break;
+    }
+    }
+
+    int x_window = x_window_start;
+    int y_window = y_window_start + image.rows + 36;
+    cv::imshow(x_window_name, x_result);
+    cv::moveWindow(x_window_name, x_window, y_window);
+
+    x_window = x_window_start + image.cols + 20;
+    cv::imshow(y_window_name, y_result);
+    cv::moveWindow(y_window_name, x_window, y_window);
+
+    cv::waitKey(0);
+
+    return 0;
+
+}
+
+int EdgeCanny(std::string file_path)
+{
+    cv::Mat image_rgb, image;
+    image_rgb = cv::imread(file_path);
+
+    if (image_rgb.empty())
+    {
+        std::cout << "Fail to read the image: " << file_path << std::endl;
+        return -1;
+    }
+
+    cv::imshow("Image", image_rgb);
+
+    int x_window_start = 10; int y_window_start = 10;
+    cv::moveWindow("Image", x_window_start, y_window_start);
+
+    const int count_to_compare = 5;
+
+    cv::cvtColor(image_rgb, image, cv::COLOR_RGB2GRAY);
+    int width_window = image.cols + 10;
+    int height_window = image.rows + 25;
+
+    int t_high, t_low;
+
+    cv::Mat result;
+
+    // Fix the lower threshold
+    t_low = 80;
+    for (int i = 0; i < count_to_compare; i++)
+    {
+        t_high = 100 + 100 * i;
+
+        cv::Canny(image, result, t_high, t_low);
+        std::string window_name = std::to_string(t_high) + "-" + std::to_string(t_low);
+        cv::imshow(window_name, result);
+        
+        int x_window = x_window_start + i * width_window;
+        int y_window = y_window_start + height_window;
+        cv::moveWindow(window_name, x_window, y_window);
+    }
+
+    cv::waitKey(0);
+
+    // Fix the higher threshold
+    t_high = 400;
+    for (int i = 0; i < count_to_compare; i++)
+    {
+        t_low = 50 + 50 * i;
+
+        cv::Canny(image, result, t_high, t_low);
+        std::string window_name = std::to_string(t_high) + "-" + std::to_string(t_low);
+        cv::imshow(window_name, result);
+
+        int x_window = x_window_start + i * width_window;
+        int y_window = y_window_start + height_window * 2 + 10;
+        cv::moveWindow(window_name, x_window, y_window);
+    }
+
+    cv::waitKey(0);
+    return 0;
+}
+
 int main()
 {
-    std::string filename = "Cameraman.png";
+    std::string filename = "../image/carmerman.bmp";
     //harrisDetector(filename);
     //siftDetector(filename);
-    std::string path_left_image = "../image/tail.bmp";
+    //std::string path_left_image = "../image/tail.bmp";
     //std::string path_right_image = "../image/tail2.bmp";
-    std::string path_right_image = "../image/tail3.bmp";
+    //std::string path_right_image = "../image/tail3.bmp";
     //std::string path_right_image = "../image/tail4.bmp";
+    std::string path_left_image = "../image/Flower.jpg";
+    std::string path_right_image = "../image/Flower2.jpg";
 
-    siftMatch(path_left_image, path_right_image);
+    //siftMatch(path_left_image, path_right_image);
+    //Gradient(filename, IAU::LAPLACIAN);
+    EdgeCanny(filename);
 
     return 0;
 }
